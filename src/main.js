@@ -175,13 +175,21 @@ tocBtnSort.addEventListener('click', () => {
   renderTocSorted();
 });
 
-// ===== 翻页 =====
+// ===== 翻页（包括音量键） =====
 prevZone.addEventListener('click', prevPage);
 nextZone.addEventListener('click', nextPage);
 prevBtn.addEventListener('click', prevPage);
 nextBtn.addEventListener('click', nextPage);
 
 centerZone.addEventListener('click', toggleBars);
+
+// 音量键翻页
+window.addEventListener('volumeup', () => {
+  if (!reader.classList.contains('hidden')) prevPage();
+});
+window.addEventListener('volumedown', () => {
+  if (!reader.classList.contains('hidden')) nextPage();
+});
 
 // ===== 返回功能（按钮 + 系统返回键） =====
 function goBack() {
