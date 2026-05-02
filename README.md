@@ -42,13 +42,6 @@
 
 从 [Releases](https://github.com/weilund/epub-reader/releases) 下载最新 APK → 传输到手机 → 点击安装（首次需开启「允许安装未知来源应用」）。
 
-### 开发
-
-```bash
-npm install
-npm run dev        # 开发模式，http://localhost:5173
-npm run build      # 构建到 dist/
-```
 
 ### PWA 部署
 
