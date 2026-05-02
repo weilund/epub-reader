@@ -38,36 +38,21 @@
 
 ## 快速开始
 
-### Web 开发
+### Android 安装
+
+从 [Releases](https://github.com/weilund/epub-reader/releases) 下载最新 APK → 传输到手机 → 点击安装（首次需开启「允许安装未知来源应用」）。
+
+### 开发
 
 ```bash
 npm install
 npm run dev        # 开发模式，http://localhost:5173
 npm run build      # 构建到 dist/
-npm run preview    # 预览构建产物
 ```
 
-### 测试
+### PWA 部署
 
-```bash
-npm test           # 运行 46 个单元测试（vitest）
-```
-
-### Android APK 打包
-
-需要 Android SDK（platform 34 + build-tools 34）。
-
-```bash
-npm run build
-npx cap sync android
-cd android
-./gradlew assembleDebug
-# APK → android/app/build/outputs/apk/debug/app-debug.apk
-```
-
-### 部署为 PWA
-
-`dist/` 目录部署到任意 HTTPS 服务器即可。iPhone/iPad 用 Safari 打开 → "添加到主屏幕" 即可使用。
+`dist/` 目录部署到任意 HTTPS 服务器。iPhone/iPad 用 Safari 打开 → 「添加到主屏幕」即可使用。
 
 ## 技术栈
 
