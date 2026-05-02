@@ -193,7 +193,7 @@ window.addEventListener('volumedown', () => {
 
 // ===== 返回功能（按钮 + 系统返回键） =====
 function goBack() {
-  try { destroyReader(); } catch {}
+  destroyReader();
   reader.style.display = 'none';
   reader.classList.add('hidden');
   splash.style.display = '';

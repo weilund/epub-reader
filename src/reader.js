@@ -20,8 +20,8 @@ export function setCallbacks(cbs) {
 
 // 加载并渲染
 export async function loadBook(arrayBuffer, fileName, startCfi) {
-  // 清理旧实例
-  if (book) destroyReader();
+  // 清理旧实例（确保不会抛出异常）
+  destroyReader();
 
   book = ePub(arrayBuffer);
   rendition = book.renderTo('viewerContainer', {
@@ -124,15 +124,9 @@ export function applyTheme(themeName) {
 
 // 清理
 export function destroyReader() {
-  if (rendition) {
-    rendition.off('relocated');
-    rendition.destroy();
-    rendition = null;
-  }
-  if (book) {
-    book.destroy?.();
-    book = null;
-  }
+  let r, b;
+  try { r = rendition; rendition = null; if (r) { r.off?.('relocated'); r.destroy?.(); } } catch {}
+  try { b = book; book = null; if (b) { b.destroy?.(); } } catch {}
 }
 
 // 目录高亮
