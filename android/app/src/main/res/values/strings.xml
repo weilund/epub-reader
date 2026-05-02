@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">EPUBReader</string>
+    <string name="title_activity_main">EPUBReader</string>
+    <string name="package_name">com.epub.reader</string>
+    <string name="custom_url_scheme">com.epub.reader</string>
+</resources>

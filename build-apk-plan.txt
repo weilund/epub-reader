@@ -1,0 +1,12 @@
+# Android SDK 安装 + APK 构建
+
+## 步骤概览
+1. 下载 Android cmdline-tools
+2. 安装 platform SDK
+3. 用 Capacitor 把 PWA 包装成 Android 项目
+4. 构建 APK
+
+## 环境
+- JDK 21 ✅
+- Node.js ✅
+- 需要 Android SDK（命令行工具）

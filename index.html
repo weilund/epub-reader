@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#1a1a2e" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="icon" type="image/svg+xml" href="/icons/icon-192.svg" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+  <title>EPUB Reader</title>
+</head>
+<body>
+
+  <!-- 初始页面：文件选择 -->
+  <div id="splash">
+    <div class="splash-icon">
+      <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect x="8" y="8" width="48" height="48" rx="6" stroke="currentColor" stroke-width="2" fill="none"/>
+        <path d="M18 22h28M18 30h28M18 38h28M18 46h20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="48" cy="48" r="14" fill="#64b5f6"/>
+        <path d="M44 48h8M48 44v8" stroke="#1a1a2e" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <h1>EPUB Reader</h1>
+    <p>选择一本电子书开始阅读</p>
+    <button id="openBtn" class="btn-primary">打开 EPUB 文件</button>
+    <div id="recentFiles" class="recent-files hidden">
+      <h3>最近阅读</h3>
+      <ul id="recentList"></ul>
+    </div>
+    <input type="file" id="fileInput" accept=".epub" hidden />
+  </div>
+
+  <!-- 阅读器界面 -->
+  <div id="reader" class="hidden">
+    <!-- 顶部栏 -->
+    <div id="topBar" class="top-bar hidden-bar">
+      <button id="backBtn" class="bar-btn" aria-label="返回">←</button>
+      <span id="bookTitle" class="book-title">书名</span>
+      <button id="tocBtn" class="bar-btn" aria-label="目录">☰</button>
+    </div>
+
+    <!-- 阅读容器（epub.js 渲染到这里，固定在 bars 之间） -->
+    <div id="viewer">
+      <div id="viewerContainer"></div>
+    </div>
+
+    <!-- 点击热区 -->
+    <div id="tapZones" class="tap-zones">
+      <div id="prevZone" class="tap-zone prev-zone">‹</div>
+      <div id="centerZone" class="tap-zone center-zone"></div>
+      <div id="nextZone" class="tap-zone next-zone">›</div>
+    </div>
+
+    <!-- 底部栏 -->
+    <div id="bottomBar" class="bottom-bar">
+      <button id="prevBtn" class="nav-btn" aria-label="上一页">‹</button>
+      <div class="progress-area">
+        <span id="progressText">0%</span>
+        <div class="progress-track">
+          <div id="progressFill" class="progress-fill"></div>
+        </div>
+      </div>
+      <button id="settingsBtn" class="nav-btn" aria-label="设置">⚙</button>
+      <button id="nextBtn" class="nav-btn" aria-label="下一页">›</button>
+    </div>
+
+    <!-- 设置面板 -->
+    <div id="settingsPanel" class="settings-panel hidden">
+      <div class="settings-sheet">
+        <div class="settings-header">
+          <span>设置</span>
+          <button id="closeSettings" class="bar-btn">✕</button>
+        </div>
+        <div class="settings-body">
+          <div class="setting-row">
+            <label>字号</label>
+            <div class="slider-row">
+              <span>小</span>
+              <input type="range" id="fontSizeSlider" min="80" max="200" value="100" />
+              <span>大</span>
+            </div>
+          </div>
+          <div class="setting-row">
+            <label>主题</label>
+            <div class="theme-options">
+              <button id="themeDay" class="theme-btn active">☀ 白天</button>
+              <button id="themeNight" class="theme-btn">☾ 夜间</button>
+              <button id="themeSepia" class="theme-btn">📜 羊皮纸</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 目录面板 -->
+    <div id="tocPanel" class="toc-panel hidden">
+      <div class="toc-sheet">
+        <div class="toc-header">
+          <span>目录</span>
+          <div class="toc-header-actions">
+            <button id="tocBtnSort" class="bar-btn" aria-label="排序">↓</button>
+            <button id="closeToc" class="bar-btn">✕</button>
+          </div>
+        </div>
+        <ul id="tocList" class="toc-list"></ul>
+      </div>
+      <div class="toc-overlay" id="tocOverlay"></div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
