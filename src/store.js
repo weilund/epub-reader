@@ -27,8 +27,9 @@ export async function loadBookData(fileName) {
 }
 
 export async function hasBookData(fileName) {
-  const val = await get(`book:${fileName}:data`);
-  return val !== undefined;
+  const key = `book:${fileName}:data`;
+  const allKeys = await keys();
+  return allKeys.includes(key);
 }
 
 export async function deleteBookData(fileName) {
@@ -55,6 +56,7 @@ export async function saveRecentFile(entry) {
   list.unshift({
     name: entry.name,
     handle: entry.handle || null,
+    type: entry.type || 'epub',
     lastOpened: Date.now(),
   });
   if (list.length > 20) list = list.slice(0, 20);

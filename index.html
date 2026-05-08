@@ -23,13 +23,14 @@
       </svg>
     </div>
     <h1>EPUB Reader</h1>
-    <p>选择一本电子书开始阅读</p>
-    <button id="openBtn" class="btn-primary">打开 EPUB 文件</button>
+    <p id="splashSubtitle">选择 EPUB 或 TXT 文件开始阅读</p>
+    <button id="openBtn" class="btn-primary">打开文件</button>
+    <p id="loadingText" class="hidden loading-text">正在加载…</p>
     <div id="recentFiles" class="recent-files hidden">
       <h3>最近阅读</h3>
       <ul id="recentList"></ul>
     </div>
-    <input type="file" id="fileInput" accept=".epub" hidden />
+    <input type="file" id="fileInput" accept=".epub,.txt" hidden />
   </div>
 
   <!-- 阅读器界面 -->
@@ -76,10 +77,10 @@
         <div class="settings-body">
           <div class="setting-row">
             <label>字号</label>
-            <div class="slider-row">
-              <span>小</span>
-              <input type="range" id="fontSizeSlider" min="80" max="200" value="100" />
-              <span>大</span>
+            <div class="size-buttons">
+              <button id="fontSizeDown" class="size-btn" aria-label="减小字号">A−</button>
+              <span id="fontSizeDisplay" class="size-display">100%</span>
+              <button id="fontSizeUp" class="size-btn" aria-label="增大字号">A+</button>
             </div>
           </div>
           <div class="setting-row">
@@ -100,7 +101,7 @@
         <div class="toc-header">
           <span>目录</span>
           <div class="toc-header-actions">
-            <button id="tocBtnSort" class="bar-btn" aria-label="排序">↓</button>
+            <button id="tocBtnSort" class="bar-btn" aria-label="排序"><span id="tocSortIcon">↓</span></button>
             <button id="closeToc" class="bar-btn">✕</button>
           </div>
         </div>

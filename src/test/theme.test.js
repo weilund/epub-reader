@@ -10,7 +10,6 @@ import {
 describe('theme.js — 主题管理', () => {
 
   beforeEach(() => {
-    // 清理 body class
     document.body.className = '';
   });
 
@@ -40,6 +39,18 @@ describe('theme.js — 主题管理', () => {
     expect(document.body.className).toBe('');
   });
 
+  it('快速连续切换不留下陈旧 class', () => {
+    setTheme('night');
+    setTheme('sepia');
+    setTheme('day');
+    setTheme('night');
+    // 最终应该是 night
+    expect(document.body.classList.contains('night')).toBe(true);
+    expect(document.body.classList.contains('sepia')).toBe(false);
+    // body class 应该只有 'night'
+    expect(document.body.className).toBe('night');
+  });
+
   it('切换时通知监听器', () => {
     const listener = vi.fn();
     const unsubscribe = onThemeChange(listener);
@@ -52,7 +63,6 @@ describe('theme.js — 主题管理', () => {
 
     unsubscribe();
     setTheme('day');
-    // 取消订阅后不应该再被调用
     expect(listener).toHaveBeenCalledTimes(2);
   });
 
@@ -67,6 +77,16 @@ describe('theme.js — 主题管理', () => {
 
     expect(a).not.toHaveBeenCalled();
     expect(b).toHaveBeenCalledWith('night');
+  });
+
+  it('所有监听器都取消后切换不崩溃', () => {
+    const a = vi.fn();
+    const b = vi.fn();
+    const unsubA = onThemeChange(a);
+    const unsubB = onThemeChange(b);
+    unsubA();
+    unsubB();
+    expect(() => setTheme('sepia')).not.toThrow();
   });
 
   describe('getEpubTheme — 生成 epub.js 主题样式', () => {

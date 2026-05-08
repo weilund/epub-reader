@@ -16,7 +16,6 @@ import {
 describe('store.js — IndexedDB 持久化', () => {
 
   beforeEach(async () => {
-    // 清理 IndexedDB（每次测试独立）
     const keys = await import('idb-keyval').then(m => m.keys());
     const { del } = await import('idb-keyval');
     for (const k of await keys) {
@@ -34,7 +33,7 @@ describe('store.js — IndexedDB 持久化', () => {
       expect(loaded.lastRead).toBeTypeOf('number');
     });
 
-    it('不存在的书返回 null', async () => {
+    it('不存在的书返回 undefined', async () => {
       const loaded = await loadProgress('nonexistent');
       expect(loaded).toBeUndefined();
     });
@@ -46,6 +45,23 @@ describe('store.js — IndexedDB 持久化', () => {
       expect(loaded.cfi).toBe('/6/5');
       expect(loaded.percentage).toBe(0.7);
     });
+
+    it('进度百分比边界值 0% 和 100%', async () => {
+      // 0%
+      await saveProgress('book-a', { cfi: '/6/1', percentage: 0 });
+      expect((await loadProgress('book-a')).percentage).toBe(0);
+      // 100%
+      await saveProgress('book-a', { cfi: '/6/99', percentage: 1 });
+      expect((await loadProgress('book-a')).percentage).toBe(1);
+    });
+
+    it('同名文件覆盖进度后数据一致', async () => {
+      await saveProgress('同名书籍', { cfi: '/6/5', percentage: 0.5 });
+      await saveProgress('同名书籍', { cfi: '/6/10', percentage: 0.8 });
+      const loaded = await loadProgress('同名书籍');
+      expect(loaded.cfi).toBe('/6/10');
+      expect(loaded.percentage).toBe(0.8);
+    });
   });
 
   describe('书籍数据缓存', () => {
@@ -53,7 +69,6 @@ describe('store.js — IndexedDB 持久化', () => {
       const data = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00]).buffer;
       await saveBookData('test-book', data);
       const loaded = await loadBookData('test-book');
-      // 在不同的 IndexedDB mock 实现中可能返回不同结构，检查内容即可
       expect(loaded).toBeTruthy();
       const view = new Uint8Array(loaded);
       expect(view[0]).toBe(0x50);
@@ -66,10 +81,13 @@ describe('store.js — IndexedDB 持久化', () => {
       expect(await hasBookData('my-book')).toBe(true);
     });
 
-    it('deleteBookData 删除数据', async () => {
+    it('deleteBookData 删除数据连带进度', async () => {
       await saveBookData('temp', new ArrayBuffer(8));
+      await saveProgress('temp', { cfi: '/6/1', percentage: 0.5 });
       await deleteBookData('temp');
       expect(await hasBookData('temp')).toBe(false);
+      // 进度应该也被删除
+      expect(await loadProgress('temp')).toBeUndefined();
     });
 
     it('不存在的书返回 null', async () => {
@@ -106,7 +124,6 @@ describe('store.js — IndexedDB 持久化', () => {
       await saveRecentFile({ name: 'book-a' });
       const list = await loadRecentFiles();
       expect(list).toHaveLength(2);
-      // book-a 应该在第一个（最新）
       expect(list[0].name).toBe('book-a');
     });
 

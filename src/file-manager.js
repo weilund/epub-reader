@@ -4,29 +4,31 @@ let currentFile = null; // { name, handle, arrayBuffer }
 
 // 通过 <input type="file"> 打开
 export async function openFileViaInput(file) {
+  const isTxt = file.name.toLowerCase().endsWith('.txt');
   const buffer = await file.arrayBuffer();
   currentFile = {
-    name: file.name.replace(/\.epub$/i, ''),
+    name: file.name.replace(/\.(epub|txt)$/i, ''),
     handle: null,
     arrayBuffer: buffer,
   };
   // 缓存文件数据到 IndexedDB（下次启动自动恢复用）
   await saveBookData(currentFile.name, buffer);
-  await saveRecentFile({ name: currentFile.name, handle: null });
+  await saveRecentFile({ name: currentFile.name, handle: null, type: isTxt ? 'txt' : 'epub' });
   return currentFile;
 }
 
 // 通过 File System Access API 打开
 export async function openFileViaHandle(handle) {
   const file = await handle.getFile();
+  const isTxt = file.name.toLowerCase().endsWith('.txt');
   const buffer = await file.arrayBuffer();
   currentFile = {
-    name: file.name.replace(/\.epub$/i, ''),
+    name: file.name.replace(/\.(epub|txt)$/i, ''),
     handle,
     arrayBuffer: buffer,
   };
   await saveBookData(currentFile.name, buffer);
-  await saveRecentFile({ name: currentFile.name, handle });
+  await saveRecentFile({ name: currentFile.name, handle, type: isTxt ? 'txt' : 'epub' });
   return currentFile;
 }
 
