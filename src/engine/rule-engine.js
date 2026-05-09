@@ -51,7 +51,9 @@ export async function loadRules() {
 
 async function search(keyword, soRule) {
   const s = soRule.search;
-  const searchUrl = s.url.replace(/{{\s*key\s*}}/g, encodeURIComponent(keyword));
+  // 支持 {{key}} 和 %s 两种占位符
+  let searchUrl = s.url.replace(/{{\s*key\s*}}/g, encodeURIComponent(keyword));
+  searchUrl = searchUrl.replace(/%s/g, encodeURIComponent(keyword));
   const method = (s.method || 'get').toLowerCase();
 
   let html;
