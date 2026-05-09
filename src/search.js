@@ -50,11 +50,18 @@ async function doSearch() {
     const data = await searchAll(q);
     searchLoading?.classList.add('hidden');
 
+    // 显示错误信息（如果有）
+    let errorHtml = '';
+    if (data.errors && data.errors.length > 0) {
+      errorHtml = `<div class="search-errors">${data.errors.length}个书源失败: ${data.errors.map(e => escapeHtml(e.sourceName + ': ' + e.error)).join('; ')}</div>`;
+    }
+
     if (!data.results || data.results.length === 0) {
-      searchResults.innerHTML = '<div class="search-empty">未找到结果，换个关键词试试</div>';
+      searchResults.innerHTML = `<div class="search-empty">未找到结果，换个关键词试试</div>${errorHtml}`;
       return;
     }
 
+    searchStatus.innerHTML = errorHtml;
     renderResults(data.results);
   } catch (e) {
     searchLoading?.classList.add('hidden');

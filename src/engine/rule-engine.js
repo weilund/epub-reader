@@ -91,6 +91,7 @@ export async function searchAll(keyword) {
   const enabled = rules.filter(r =>
     r.search && !r.search.disabled && r.search.url
   );
+  console.log(`[搜索] 关键词: "${keyword}", 可用书源: ${enabled.length}个`);
 
   const settled = await Promise.allSettled(
     enabled.map(r =>
@@ -103,13 +104,23 @@ export async function searchAll(keyword) {
   );
 
   const all = [];
-  for (const item of settled) {
+  const errors = [];
+  for (let i = 0; i < settled.length; i++) {
+    const item = settled[i];
     if (item.status === 'fulfilled') {
-      all.push(item.value);
+      const v = item.value;
+      if (v.results.length > 0) {
+        console.log(`[搜索] ${v.sourceName}: ${v.results.length}条`);
+        all.push(v);
+      }
+    } else {
+      const errMsg = item.reason?.message || String(item.reason);
+      console.warn(`[搜索] ${enabled[i].name}: 失败 - ${errMsg}`);
+      errors.push({ sourceName: enabled[i].name, error: errMsg });
     }
   }
 
-  return { results: all };
+  return { results: all, errors };
 }
 
 // ===== 目录获取 =====

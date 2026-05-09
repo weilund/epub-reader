@@ -631,6 +631,14 @@ body.sepia {
   color: #e57373;
 }
 
+.search-errors {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 8px 0;
+  line-height: 1.6;
+  word-break: break-all;
+}
+
 .search-source-group {
   margin-bottom: 12px;
 }

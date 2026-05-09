@@ -2,6 +2,7 @@
 const isCapacitor = typeof window !== 'undefined' && !!(window.Capacitor?.isNativePlatform?.());
 
 export async function fetchHtml(url, cookies) {
+  console.log(`[HTTP] GET ${url.substring(0, 100)}`);
   const headers = {
     'User-Agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml',
