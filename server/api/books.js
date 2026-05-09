@@ -9,7 +9,7 @@ function register(app) {
 
     try {
       const rules = loadRules();
-      const rule = rules[parseInt(source, 10)] || rules.find(r => r.bookSourceName === source);
+      const rule = rules.find(r => r._id === source || r.name === source);
       if (!rule) return res.status(404).json({ error: `书源 ${source} 不存在` });
 
       const { getChapters } = require('../engine/rule-engine');

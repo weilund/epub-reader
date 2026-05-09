@@ -26,18 +26,23 @@ function decodeBody(buffer, ctHeader) {
   return new TextDecoder(charset).decode(buffer);
 }
 
-async function fetchHtml(url) {
+async function fetchHtml(url, cookies) {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), config.REQUEST_TIMEOUT);
 
   try {
+    const headers = {
+      'User-Agent': config.USER_AGENT,
+      'Accept': 'text/html,application/xhtml+xml',
+      'Accept-Language': 'zh-CN,zh;q=0.9',
+    };
+    if (cookies) {
+      headers['Cookie'] = cookies;
+    }
+
     const resp = await fetch(url, {
       signal: controller.signal,
-      headers: {
-        'User-Agent': config.USER_AGENT,
-        'Accept': 'text/html,application/xhtml+xml',
-        'Accept-Language': 'zh-CN,zh;q=0.9',
-      },
+      headers,
       redirect: 'follow',
     });
 
@@ -52,4 +57,4 @@ async function fetchHtml(url) {
   }
 }
 
-module.exports = { fetchHtml, FetchError };
+module.exports = { fetchHtml, FetchError, decodeBody };
