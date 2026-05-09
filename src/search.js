@@ -1,59 +1,38 @@
-import { loadServerUrl } from './store.js';
-import { downloadEpub } from './download.js';
+import { searchAll } from './engine/rule-engine.js';
+import { downloadBook } from './engine/rule-engine.js';
+import { generateEpub } from './engine/epub-generator.js';
+import { saveDownloadedBook } from './download.js';
 
-let searchPanel, searchInput, searchResults, searchStatus, searchLoading, searchBtn;
+let searchPanel, searchInput, searchResults, searchStatus, searchLoading;
 let downloadOverlay, downloadBookName, downloadProgressFill, downloadStatus;
-let serverUrl = '';
-let onOpenBook = null; // 下载完成后打开书的回调
+let onOpenBook = null;
 
 export function setOnOpenBook(fn) {
   onOpenBook = fn;
 }
 
-export async function mountSearchUI() {
-  serverUrl = (await loadServerUrl()) || window.__SERVER_URL__ || 'http://localhost:3001';
-
-  // 探测后端是否可达
-  try {
-    const resp = await fetch(`${serverUrl}/api/sources`);
-    if (!resp.ok) throw new Error('unreachable');
-  } catch {
-    // 服务器不可达，隐藏搜索标签
-    const tab = document.getElementById('tabSearch');
-    if (tab) tab.style.display = 'none';
-    return;
-  }
-
+export function mountSearchUI() {
   searchPanel = document.getElementById('searchPanel');
   searchInput = document.getElementById('searchInput');
   searchResults = document.getElementById('searchResults');
   searchStatus = document.getElementById('searchStatus');
   searchLoading = document.getElementById('searchLoading');
-  searchBtn = document.getElementById('searchBtn');
 
   downloadOverlay = document.getElementById('downloadOverlay');
   downloadBookName = document.getElementById('downloadBookName');
   downloadProgressFill = document.getElementById('downloadProgressFill');
   downloadStatus = document.getElementById('downloadStatus');
 
-  // 搜索按钮
-  if (searchBtn) {
-    searchBtn.addEventListener('click', () => doSearch());
-  }
+  document.getElementById('searchBtn')?.addEventListener('click', () => doSearch());
 
-  // 回车搜索
-  if (searchInput) {
-    searchInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') doSearch();
-    });
-  }
+  searchInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') doSearch();
+  });
 
-  // 关闭搜索面板
   document.getElementById('closeSearch')?.addEventListener('click', () => {
     searchPanel?.classList.add('hidden');
   });
 
-  // 进入搜索标签时聚焦
   document.getElementById('tabSearch')?.addEventListener('click', () => {
     setTimeout(() => searchInput?.focus(), 100);
   });
@@ -68,9 +47,7 @@ async function doSearch() {
   searchLoading?.classList.remove('hidden');
 
   try {
-    const resp = await fetch(`${serverUrl}/api/search/all?q=${encodeURIComponent(q)}`);
-    const data = await resp.json();
-
+    const data = await searchAll(q);
     searchLoading?.classList.add('hidden');
 
     if (!data.results || data.results.length === 0) {
@@ -125,7 +102,6 @@ function renderResults(allResults) {
   searchStatus.textContent = `找到 ${totalCount} 个结果`;
   searchResults.innerHTML = html;
 
-  // 下载按钮事件
   searchResults.querySelectorAll('.search-download-btn').forEach(btn => {
     btn.addEventListener('click', async (e) => {
       e.stopPropagation();
@@ -141,23 +117,35 @@ async function startDownload(bookInfo, sourceId) {
   if (!downloadOverlay) return;
   downloadOverlay.classList.remove('hidden');
   if (downloadBookName) downloadBookName.textContent = bookInfo.name;
-  if (downloadStatus) downloadStatus.textContent = '准备下载...';
+  if (downloadStatus) downloadStatus.textContent = '获取章节列表...';
   if (downloadProgressFill) downloadProgressFill.style.width = '0%';
 
   try {
-    const blob = await downloadEpub(bookInfo, sourceId, (pct) => {
-      if (downloadProgressFill) downloadProgressFill.style.width = `${pct}%`;
-      if (downloadStatus) downloadStatus.textContent = `下载中 ${pct}%`;
+    // 下载章节数据
+    const data = await downloadBook(sourceId, bookInfo.bookUrl, bookInfo.name, bookInfo.author);
+
+    if (downloadStatus) downloadStatus.textContent = '生成 EPUB...';
+    if (downloadProgressFill) downloadProgressFill.style.width = '50%';
+
+    // 前端生成 EPUB
+    const epubBuffer = await generateEpub({
+      title: bookInfo.name || '未知',
+      author: bookInfo.author || '佚名',
+      chapters: data.chapters.filter(c => c.content),
     });
+
+    if (downloadStatus) downloadStatus.textContent = '保存中...';
+    if (downloadProgressFill) downloadProgressFill.style.width = '90%';
+
+    const blob = new Blob([epubBuffer], { type: 'application/epub+zip' });
+    const arrayBuffer = await saveDownloadedBook(blob, bookInfo.name);
 
     if (downloadStatus) downloadStatus.textContent = '下载完成！';
     if (downloadProgressFill) downloadProgressFill.style.width = '100%';
 
-    // 延迟关闭浮层，让用户看到完成状态
     setTimeout(async () => {
       downloadOverlay?.classList.add('hidden');
-      // 回调打开书
-      if (onOpenBook) onOpenBook(bookInfo.name, await blob.arrayBuffer(), 'epub');
+      if (onOpenBook) onOpenBook(bookInfo.name, arrayBuffer, 'epub');
     }, 800);
   } catch (e) {
     if (downloadStatus) downloadStatus.textContent = `下载失败: ${e.message}`;

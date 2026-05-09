@@ -72,11 +72,3 @@ export async function clearRecent() {
   await del('global:recent');
 }
 
-// 服务器地址配置
-export async function saveServerUrl(url) {
-  await set('global:serverUrl', url);
-}
-
-export async function loadServerUrl() {
-  return (await get('global:serverUrl')) || '';
-}

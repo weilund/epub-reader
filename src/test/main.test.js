@@ -6,7 +6,6 @@ vi.mock('../store.js', () => ({
   saveSettings: vi.fn(() => Promise.resolve()),
   loadProgress: vi.fn(() => Promise.resolve(null)),
   loadBookData: vi.fn(() => Promise.resolve(null)),
-  loadServerUrl: vi.fn(() => Promise.resolve('')),
 }));
 
 vi.mock('../reader.js', () => ({
