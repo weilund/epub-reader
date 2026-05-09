@@ -12,6 +12,7 @@ import { loadSettings, saveSettings, loadProgress, loadBookData } from './store.
 import { getCurrentTheme, setTheme, onThemeChange } from './theme.js';
 import { renderToc, toggleSort, clearToc } from './toc.js';
 import { showLoading, hideLoading, showBars, hideBars, toggleBars, updateChapterTitle, updateThemeButtons } from './ui.js';
+import { mountSearchUI, setOnOpenBook } from './search.js';
 
 // ===== DOM 引用 =====
 const $ = (id) => document.getElementById(id);
@@ -86,6 +87,36 @@ function setReaderEpub() {
   activeReader.applyTheme = (t) => epubApplyTheme(t);
   activeReader.destroyReader = () => epubDestroy();
 }
+
+// ===== 标签切换 =====
+const splashLocal = document.getElementById('splashLocal');
+const tabOpen = document.getElementById('tabOpen');
+const tabSearch = document.getElementById('tabSearch');
+const searchPanel = document.getElementById('searchPanel');
+
+tabOpen?.addEventListener('click', () => {
+  tabOpen.classList.add('active');
+  tabSearch?.classList.remove('active');
+  splashLocal?.classList.remove('hidden');
+  searchPanel?.classList.add('hidden');
+  openBtn?.classList.remove('hidden');
+});
+
+if (tabSearch) {
+  tabSearch.addEventListener('click', () => {
+    tabSearch.classList.add('active');
+    tabOpen?.classList.remove('active');
+    splashLocal?.classList.add('hidden');
+    searchPanel?.classList.remove('hidden');
+    openBtn?.classList.add('hidden');
+  });
+}
+
+// ===== 搜索回调：下载完成后直接打开书 =====
+setOnOpenBook(async (name, arrayBuffer, type) => {
+  const fileInfo = await openFromCache(name, arrayBuffer);
+  await enterReader(fileInfo.name, arrayBuffer, type);
+});
 
 // ===== 打开文件 =====
 openBtn.addEventListener('click', () => fileInput.click());
@@ -275,6 +306,9 @@ async function handleRecentClick(name) {
 
 // ===== 初始化 =====
 async function init() {
+  // 挂载搜索面板（探测后端），默认显示本地文件标签
+  mountSearchUI();
+
   try {
     const recent = await getRecentFiles();
     if (recent.length > 0) {

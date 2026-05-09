@@ -14,7 +14,14 @@
 
   <!-- 初始页面：文件选择 -->
   <div id="splash">
-    <div class="splash-icon">
+    <!-- 标签切换栏 -->
+    <div id="mainTabs" class="main-tabs">
+      <button id="tabOpen" class="tab-btn active">📂 本地文件</button>
+      <button id="tabSearch" class="tab-btn">🔍 搜索</button>
+    </div>
+
+    <div id="splashLocal">
+      <div class="splash-icon">
       <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
         <rect x="8" y="8" width="48" height="48" rx="6" stroke="currentColor" stroke-width="2" fill="none"/>
         <path d="M18 22h28M18 30h28M18 38h28M18 46h20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
@@ -31,6 +38,19 @@
       <ul id="recentList"></ul>
     </div>
     <input type="file" id="fileInput" accept=".epub,.txt" hidden />
+    </div>
+
+    <!-- 搜索面板 -->
+    <div id="searchPanel" class="search-panel hidden">
+      <div class="search-input-area">
+        <input type="text" id="searchInput" placeholder="输入书名或作者…" />
+        <button id="searchBtn" class="btn-primary">搜索</button>
+      </div>
+      <div id="searchLoading" class="hidden search-loading-text">搜索中...</div>
+      <div id="searchStatus" class="search-status hidden"></div>
+      <div id="searchResults" class="search-results"></div>
+      <div class="search-empty-init">输入关键词，搜索全网小说</div>
+    </div>
   </div>
 
   <!-- 阅读器界面 -->
@@ -112,5 +132,17 @@
   </div>
 
   <script type="module" src="/src/main.js"></script>
+
+  <!-- 下载进度浮层 -->
+  <div id="downloadOverlay" class="download-overlay hidden">
+    <div class="download-sheet">
+      <div class="download-header">正在下载</div>
+      <div id="downloadBookName" class="download-book-name"></div>
+      <div class="download-progress-track">
+        <div id="downloadProgressFill" class="download-progress-fill"></div>
+      </div>
+      <div id="downloadStatus" class="download-status">准备中...</div>
+    </div>
+  </div>
 </body>
 </html>

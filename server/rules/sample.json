@@ -1,0 +1,44 @@
+[
+  {
+    "bookSourceName": "笔趣阁",
+    "bookSourceUrl": "https://www.xbiquge.com",
+    "searchUrl": "https://www.xbiquge.com/search?q={{key}}",
+    "ruleSearch": {
+      "bookList": "div.result-item",
+      "name": "h3.result-item-title a@text",
+      "author": "p.result-game-info-info span:nth-child(2)@text",
+      "bookUrl": "h3.result-item-title a@href",
+      "coverUrl": "img.result-item-pic@src",
+      "intro": "p.result-item-desc@text",
+      "lastChapter": "p.result-game-info-info a@text"
+    },
+    "ruleToc": {
+      "chapterList": "ul.chapter-list li",
+      "chapterName": "a@text",
+      "chapterUrl": "a@href"
+    },
+    "ruleContent": {
+      "content": "div#content@html"
+    }
+  },
+  {
+    "bookSourceName": "89文学",
+    "bookSourceUrl": "https://www.89wxw.com",
+    "searchUrl": "https://www.89wxw.com/search?keyword={{key}}",
+    "ruleSearch": {
+      "bookList": "div.novelslist div.novelslist2",
+      "name": "li:nth-child(1) a@text",
+      "author": "li:nth-child(3)@text",
+      "bookUrl": "li:nth-child(1) a@href",
+      "lastChapter": "li:nth-child(5) a@text"
+    },
+    "ruleToc": {
+      "chapterList": "ul.chapter-list li",
+      "chapterName": "a@text",
+      "chapterUrl": "a@href"
+    },
+    "ruleContent": {
+      "content": "div#content@html"
+    }
+  }
+]
