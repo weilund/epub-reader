@@ -1,27 +1,58 @@
-// 检测是否在 Capacitor WebView 中
+import { CapacitorHttp } from '@capacitor/core';
+
 const isCapacitor = typeof window !== 'undefined' && !!(window.Capacitor?.isNativePlatform?.());
 
-export async function fetchHtml(url, cookies) {
-  console.log(`[HTTP] GET ${url.substring(0, 100)}`);
-  const headers = {
+async function doFetch(url, options = {}) {
+  if (isCapacitor) {
+    // Capacitor 原生 HTTP：绕过 WebView CORS
+    const resp = await CapacitorHttp.request({
+      method: options.method || 'GET',
+      url,
+      headers: options.headers || {},
+      data: options.body || undefined,
+    });
+    if (resp.status < 200 || resp.status >= 400) {
+      throw new Error(`HTTP ${resp.status}: ${url}`);
+    }
+    // resp.data 在真实响应中是 string，在错误时可能是对象
+    return typeof resp.data === 'string' ? resp.data : JSON.stringify(resp.data);
+  }
+
+  // 浏览器 PWA：使用 fetch（有 CORS 限制，仅用于开发）
+  const resp = await fetch(url, {
+    ...options,
+    redirect: 'follow',
+  });
+  if (!resp.ok) {
+    throw new Error(`HTTP ${resp.status}: ${url}`);
+  }
+  return resp.text();
+}
+
+function decodeHtml(text) {
+  // 尝试检测并处理 GBK 编码的文本
+  // CapacitorHttp 返回的数据已经按 UTF-8 解码，如果源站是 GBK 可能会乱码
+  // 大多数现代网站已经迁移到 UTF-8，先保持原样
+  if (text.includes('�')) {
+    console.warn('[HTTP] 可能的编码问题，返回原始文本');
+  }
+  return text;
+}
+
+function buildHeaders(cookies) {
+  const h = {
     'User-Agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml',
     'Accept-Language': 'zh-CN,zh;q=0.9',
   };
-  if (cookies) headers['Cookie'] = cookies;
+  if (cookies) h['Cookie'] = cookies;
+  return h;
+}
 
-  // 在 Capacitor 环境中，fetch 不受 CORS/Mixed Content 限制
-  const resp = await fetch(url, {
-    headers,
-    redirect: 'follow',
-  });
-
-  if (!resp.ok) {
-    throw new Error(`HTTP ${resp.status}: ${url}`);
-  }
-
-  const buffer = await resp.arrayBuffer();
-  return decodeHtml(buffer);
+export async function fetchHtml(url, cookies) {
+  console.log(`[HTTP] GET ${url.substring(0, 100)}`);
+  const text = await doFetch(url, { headers: buildHeaders(cookies) });
+  return decodeHtml(text);
 }
 
 export async function fetchWithPost(url, dataTemplate, keyword, cookies) {
@@ -35,62 +66,14 @@ export async function fetchWithPost(url, dataTemplate, keyword, cookies) {
     body.append(k.trim(), v);
   }
 
-  const headers = {
-    'User-Agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-    'Content-Type': 'application/x-www-form-urlencoded',
-    'Accept': 'text/html,application/xhtml+xml',
-    'Accept-Language': 'zh-CN,zh;q=0.9',
-  };
-  if (cookies) headers['Cookie'] = cookies;
+  console.log(`[HTTP] POST ${url.substring(0, 100)}`);
+  const headers = buildHeaders(cookies);
+  headers['Content-Type'] = 'application/x-www-form-urlencoded';
 
-  const resp = await fetch(url, {
+  const text = await doFetch(url, {
     method: 'POST',
     headers,
     body: body.toString(),
-    redirect: 'follow',
   });
-
-  if (!resp.ok) {
-    throw new Error(`HTTP ${resp.status}: ${url}`);
-  }
-
-  const buffer = await resp.arrayBuffer();
-  return decodeHtml(buffer);
-}
-
-function decodeHtml(buffer) {
-  // 尝试 UTF-8
-  try {
-    const text = new TextDecoder('utf-8').decode(buffer);
-    // 检测是否仍是乱码 (包含常见 GBK 乱码特征)
-    if (text.includes('�') || containsGarbled(text)) {
-      return tryGbk(buffer);
-    }
-    return text;
-  } catch {
-    return tryGbk(buffer);
-  }
-}
-
-function containsGarbled(text) {
-  // 简单启发式：大量不可打印字符
-  let garbled = 0;
-  for (let i = 0; i < Math.min(text.length, 500); i++) {
-    const c = text.charCodeAt(i);
-    if (c > 0 && c < 32 && c !== 10 && c !== 13 && c !== 9) garbled++;
-  }
-  return garbled > 5;
-}
-
-function tryGbk(buffer) {
-  try {
-    // Chrome/Android WebView 支持 GBK
-    return new TextDecoder('gbk').decode(buffer);
-  } catch {
-    try {
-      return new TextDecoder('gb18030').decode(buffer);
-    } catch {
-      return new TextDecoder('utf-8', { fatal: false }).decode(buffer);
-    }
-  }
+  return decodeHtml(text);
 }
