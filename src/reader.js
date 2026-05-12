@@ -49,8 +49,8 @@ export async function loadBook(arrayBuffer, fileName, startCfi) {
   try {
     const nav = await book.loaded.navigation;
     emit('onTocReady', flattenToc(nav.toc));
-  } catch {
-    // 没有目录也不崩溃
+  } catch (e) {
+    console.warn('[reader] 获取目录失败:', e.message);
   }
 
   // 位置变化监听
@@ -108,8 +108,8 @@ export async function goTo(target) {
         await rendition.display(target);
       }
     }
-  } catch {
-    // 静默失败，至少不崩溃
+  } catch (e) {
+    console.warn('[reader] 跳转失败:', e.message);
   }
 }
 
@@ -147,8 +147,12 @@ export function applyTheme(themeName) {
 // 清理
 export function destroyReader() {
   let r, b;
-  try { r = rendition; rendition = null; if (r) { r.off?.('relocated'); r.destroy?.(); } } catch {}
-  try { b = book; book = null; if (b) { b.destroy?.(); } } catch {}
+  try { r = rendition; rendition = null; if (r) { r.off?.('relocated'); r.destroy?.(); } } catch (e) {
+    console.warn('[reader] 销毁 Rendition 失败:', e.message);
+  }
+  try { b = book; book = null; if (b) { b.destroy?.(); } } catch (e) {
+    console.warn('[reader] 销毁 Book 失败:', e.message);
+  }
   lastLocationCfi = null;
   suppressAutoSave = false;
 }

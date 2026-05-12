@@ -8,6 +8,7 @@
       "method": "get",
       "result": "body > div.wrap > div > div > div",
       "bookName": "dl > dt > a",
+      "bookUrl": "dl > dt > a",
       "author": "dl > dt > span",
       "intro": "dl > dd"
     },
@@ -45,6 +46,7 @@
       "method": "get",
       "result": ".result_list > ul > li > .book",
       "bookName": ".name > a",
+      "bookUrl": ".name > a",
       "author": ".author",
       "status": ".serial",
       "wordCount": ".count",
@@ -84,6 +86,7 @@
       "method": "get",
       "result": ".result > ul > li",
       "bookName": ".book_inf > h3 > a",
+      "bookUrl": ".book_inf > h3 > a",
       "author": ".book_inf > p.tags > span:nth-child(1) > a",
       "wordCount": ".book_inf > p.tags > span:nth-child(4)@js:r=r.replaceAll('总字数：', '');",
       "latestChapter": ".book_inf > p:nth-child(3) > a",
@@ -124,6 +127,7 @@
       "method": "get",
       "result": ".container > div",
       "bookName": "div > h3 > a",
+      "bookUrl": "div > h3 > a",
       "author": "div > p:nth-child(3)@js:r=r.replaceAll('作者：', '');",
       "latestChapter": "div > ul > li:nth-child(1) > a",
       "lastUpdateTime": "div > ul > li:nth-child(1) > i"

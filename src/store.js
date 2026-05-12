@@ -35,6 +35,25 @@ export async function hasBookData(fileName) {
 export async function deleteBookData(fileName) {
   await del(`book:${fileName}:data`);
   await del(`book:${fileName}:progress`);
+  await del(`book:${fileName}:source`);
+}
+
+// ===== 书源记录（用于换源） =====
+export async function saveBookSource(fileName, sourceInfo) {
+  await set(`book:${fileName}:source`, {
+    sourceId: sourceInfo.sourceId,
+    bookUrl: sourceInfo.bookUrl,
+    author: sourceInfo.author || '',
+    updatedAt: Date.now(),
+  });
+}
+
+export async function loadBookSource(fileName) {
+  return await get(`book:${fileName}:source`);
+}
+
+export async function deleteBookSource(fileName) {
+  await del(`book:${fileName}:source`);
 }
 
 // 全局设置
@@ -70,5 +89,22 @@ export async function loadRecentFiles() {
 
 export async function clearRecent() {
   await del('global:recent');
+}
+
+// 列出所有已下载的书籍名称（通过遍历 IndexedDB 中 book:*:data 的 key）
+export async function listAllBooks() {
+  const allKeys = await keys();
+  const bookKeys = allKeys.filter(k => typeof k === 'string' && k.startsWith('book:') && k.endsWith(':data'));
+  const names = bookKeys.map(k => k.slice(5, -5)); // 去掉 "book:" 前缀和 ":data" 后缀
+  // 按最近阅读排序
+  const recent = await loadRecentFiles();
+  const recentOrder = {};
+  recent.forEach((r, i) => { recentOrder[r.name] = i; });
+  names.sort((a, b) => {
+    const ai = recentOrder[a] ?? 999;
+    const bi = recentOrder[b] ?? 999;
+    return ai - bi;
+  });
+  return names;
 }
 

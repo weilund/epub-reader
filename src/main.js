@@ -8,11 +8,14 @@ import {
   setCallbacks as epubSetCallbacks,
 } from './reader.js';
 import * as txt from './txt-reader.js';
-import { loadSettings, saveSettings, loadProgress, loadBookData } from './store.js';
+import { loadSettings, saveSettings, loadProgress, loadBookData, loadBookSource, saveBookSource, deleteBookData, listAllBooks } from './store.js';
 import { getCurrentTheme, setTheme, onThemeChange } from './theme.js';
 import { renderToc, toggleSort, clearToc } from './toc.js';
 import { showLoading, hideLoading, showBars, hideBars, toggleBars, updateChapterTitle, updateThemeButtons } from './ui.js';
 import { mountSearchUI, setOnOpenBook } from './search.js';
+import { searchAll, downloadBook } from './engine/rule-engine.js';
+import { generateEpub } from './engine/epub-generator.js';
+import { saveDownloadedBook } from './download.js';
 
 // ===== DOM 引用 =====
 const $ = (id) => document.getElementById(id);
@@ -59,6 +62,12 @@ const tocOverlay = $('tocOverlay');
 const recentFiles = $('recentFiles');
 const recentList = $('recentList');
 
+// ===== 当前阅读状态 =====
+let currentFileName = '';
+let currentFileType = '';
+let currentSourceId = '';
+let currentBookUrl = '';
+
 // ===== 阅读器派发 =====
 // 根据当前文件类型（epub/txt）自动路由到正确的模块
 const activeReader = {
@@ -90,32 +99,111 @@ function setReaderEpub() {
 
 // ===== 标签切换 =====
 const splashLocal = document.getElementById('splashLocal');
+const splashDownloads = document.getElementById('splashDownloads');
 const tabOpen = document.getElementById('tabOpen');
 const tabSearch = document.getElementById('tabSearch');
+const tabDownloads = document.getElementById('tabDownloads');
 const searchPanel = document.getElementById('searchPanel');
+const downloadsList = document.getElementById('downloadsList');
+const downloadsCount = document.getElementById('downloadsCount');
+
+function switchTab(activeTab) {
+  [tabOpen, tabSearch, tabDownloads].forEach(t => t?.classList.remove('active'));
+  activeTab?.classList.add('active');
+  splashLocal?.classList.add('hidden');
+  searchPanel?.classList.add('hidden');
+  splashDownloads?.classList.add('hidden');
+  openBtn?.classList.add('hidden');
+}
 
 tabOpen?.addEventListener('click', () => {
-  tabOpen.classList.add('active');
-  tabSearch?.classList.remove('active');
+  switchTab(tabOpen);
   splashLocal?.classList.remove('hidden');
-  searchPanel?.classList.add('hidden');
   openBtn?.classList.remove('hidden');
 });
 
-if (tabSearch) {
-  tabSearch.addEventListener('click', () => {
-    tabSearch.classList.add('active');
-    tabOpen?.classList.remove('active');
-    splashLocal?.classList.add('hidden');
-    searchPanel?.classList.remove('hidden');
-    openBtn?.classList.add('hidden');
-  });
+tabSearch?.addEventListener('click', () => {
+  switchTab(tabSearch);
+  searchPanel?.classList.remove('hidden');
+});
+
+tabDownloads?.addEventListener('click', () => {
+  switchTab(tabDownloads);
+  splashDownloads?.classList.remove('hidden');
+  refreshDownloadsList();
+});
+
+// ===== 下载管理 =====
+async function refreshDownloadsList() {
+  if (!downloadsList) return;
+  try {
+    const names = await listAllBooks();
+    if (names.length === 0) {
+      downloadsList.innerHTML = '<div class="downloads-empty">还没有下载过书籍</div>';
+      if (downloadsCount) downloadsCount.textContent = '';
+      return;
+    }
+    if (downloadsCount) downloadsCount.textContent = `${names.length} 本`;
+
+    let html = '';
+    for (const name of names) {
+      const hasSource = !!(await loadBookSource(name).catch(() => null));
+      html += `
+      <div class="downloads-item" data-name="${escapeHtml(name)}">
+        <div class="downloads-item-info">
+          <div class="downloads-item-title">${escapeHtml(name)}</div>
+          <div class="downloads-item-meta">${hasSource ? '📡 可换源' : '📄 本地文件'}</div>
+        </div>
+        <div class="downloads-item-actions">
+          <button class="downloads-open-btn" data-name="${escapeAttr(name)}">打开</button>
+          <button class="downloads-del-btn" data-name="${escapeAttr(name)}">删除</button>
+        </div>
+      </div>`;
+    }
+    downloadsList.innerHTML = html;
+
+    // 绑定打开按钮
+    downloadsList.querySelectorAll('.downloads-open-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const name = btn.dataset.name;
+        showLoading();
+        const buffer = await loadBookData(name);
+        if (buffer) {
+          const recent = await getRecentFiles();
+          const entry = recent.find(f => f.name === name);
+          const isTxt = entry?.type === 'txt';
+          await openFromCache(name, buffer);
+          const data = isTxt ? new TextDecoder().decode(buffer) : buffer;
+          await enterReader(name, data, isTxt ? 'txt' : 'epub');
+        } else {
+          hideLoading();
+        }
+      });
+    });
+
+    // 绑定删除按钮
+    downloadsList.querySelectorAll('.downloads-del-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const name = btn.dataset.name;
+        if (!confirm(`确定要删除「${name}」吗？\n删除后无法恢复。`)) return;
+        await deleteBookData(name);
+        refreshDownloadsList();
+      });
+    });
+  } catch (e) {
+    console.warn('[main] 刷新下载列表失败:', e.message);
+    downloadsList.innerHTML = '<div class="downloads-empty">加载失败</div>';
+  }
 }
 
 // ===== 搜索回调：下载完成后直接打开书 =====
-setOnOpenBook(async (name, arrayBuffer, type) => {
+setOnOpenBook(async (name, arrayBuffer, type, sourceInfo) => {
+  // 保存书源信息（用于换源）
+  if (sourceInfo) {
+    await saveBookSource(name, sourceInfo).catch(() => {});
+  }
   const fileInfo = await openFromCache(name, arrayBuffer);
-  await enterReader(fileInfo.name, arrayBuffer, type);
+  await enterReader(fileInfo.name, arrayBuffer, type, sourceInfo);
 });
 
 // ===== 打开文件 =====
@@ -142,7 +230,18 @@ async function startReading(file) {
 }
 
 // ===== 进入阅读器 =====
-async function enterReader(fileName, data, type) {
+async function enterReader(fileName, data, type, sourceInfo) {
+  currentFileName = fileName;
+  currentFileType = type;
+  if (sourceInfo) {
+    currentSourceId = sourceInfo.sourceId || '';
+    currentBookUrl = sourceInfo.bookUrl || '';
+  } else {
+    // 从缓存加载书源信息
+    const cached = await loadBookSource(fileName).catch(() => null);
+    currentSourceId = cached?.sourceId || '';
+    currentBookUrl = cached?.bookUrl || '';
+  }
   // 清除 goBack 留下的 inline style
   reader.style.display = '';
   reader.classList.remove('hidden');
@@ -185,6 +284,113 @@ async function enterReader(fileName, data, type) {
   showBars();
 }
 
+// ===== 换源 =====
+const switchSourceBtn = document.getElementById('switchSourceBtn');
+const switchSourcePanel = document.getElementById('switchSourcePanel');
+const switchSourceList = document.getElementById('switchSourceList');
+const closeSwitchSource = document.getElementById('closeSwitchSource');
+const switchSourceLoading = document.getElementById('switchSourceLoading');
+
+switchSourceBtn?.addEventListener('click', async () => {
+  if (!currentFileName) return;
+  switchSourcePanel?.classList.remove('hidden');
+  if (switchSourceList) switchSourceList.innerHTML = '';
+  if (switchSourceLoading) switchSourceLoading.classList.remove('hidden');
+
+  try {
+    const data = await searchAll(currentFileName);
+    if (switchSourceLoading) switchSourceLoading.classList.add('hidden');
+
+    const otherSources = (data.results || []).filter(
+      (s) => s.sourceId !== currentSourceId
+    );
+
+    if (otherSources.length === 0) {
+      if (switchSourceList) {
+        let msg = '<div class="switch-source-empty">未找到其他书源</div>';
+        if (data.errors && data.errors.length > 0) {
+          msg += `<div class="search-errors">${data.errors.map(e => escapeHtml(e.sourceName + ': ' + e.error)).join('<br>')}</div>`;
+        }
+        switchSourceList.innerHTML = msg;
+      }
+      return;
+    }
+
+    for (const source of otherSources) {
+      for (const book of source.results) {
+        const el = document.createElement('div');
+        el.className = 'switch-source-item';
+        el.innerHTML = `
+          <div class="switch-source-name">${escapeHtml(book.name)}</div>
+          <div class="switch-source-meta">${escapeHtml(source.sourceName)} · ${escapeHtml(book.author || '佚名')}</div>
+        `;
+        el.addEventListener('click', () => doSwitchSource(source.sourceId, book.bookUrl, book.name, book.author));
+        switchSourceList?.appendChild(el);
+      }
+    }
+  } catch (e) {
+    if (switchSourceLoading) switchSourceLoading.classList.add('hidden');
+    if (switchSourceList) {
+      switchSourceList.innerHTML = `<div class="switch-source-empty">搜索失败: ${escapeHtml(e.message)}</div>`;
+    }
+  }
+});
+
+closeSwitchSource?.addEventListener('click', () => {
+  switchSourcePanel?.classList.add('hidden');
+});
+switchSourcePanel?.addEventListener('click', (e) => {
+  if (e.target === switchSourcePanel) switchSourcePanel.classList.add('hidden');
+});
+
+async function doSwitchSource(sourceId, bookUrl, bookName, author) {
+  switchSourcePanel?.classList.add('hidden');
+
+  if (!currentFileName) return;
+  showLoading();
+
+  try {
+    const data = await downloadBook(sourceId, bookUrl, bookName, author);
+    if (!data.chapters.length) throw new Error('未获取到章节');
+
+    const epubBuffer = await generateEpub({
+      title: bookName || currentFileName,
+      author: author || '',
+      chapters: data.chapters.filter(c => c.content),
+    });
+
+    const blob = new Blob([epubBuffer], { type: 'application/epub+zip' });
+    const arrayBuffer = await saveDownloadedBook(blob, currentFileName);
+
+    // 更新书源记录
+    await saveBookSource(currentFileName, { sourceId, bookUrl, author });
+    currentSourceId = sourceId;
+    currentBookUrl = bookUrl;
+
+    // 重新打开阅读器
+    activeReader.destroyReader();
+    await openFromCache(currentFileName, arrayBuffer);
+    await enterReader(currentFileName, arrayBuffer, 'epub', { sourceId, bookUrl, author });
+
+    hideLoading();
+  } catch (e) {
+    hideLoading();
+    alert(`换源失败: ${e.message}`);
+  }
+}
+
+function escapeHtml(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function escapeAttr(s) {
+  if (!s) return '';
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // ===== 翻页 =====
 prevZone.addEventListener('click', () => activeReader.prevPage());
 nextZone.addEventListener('click', () => activeReader.nextPage());
@@ -200,19 +406,33 @@ window.addEventListener('volumedown', () => {
   if (!reader.classList.contains('hidden')) activeReader.nextPage();
 });
 
-// ===== 返回 =====
+// ===== 返回（重置到本地文件标签页） =====
 function goBack() {
   const fontSizeVal = parseInt(fontSizeDisplay?.textContent || '100', 10);
-  saveSettings({ fontSize: fontSizeVal, theme: getCurrentTheme() }).catch(() => {});
+  saveSettings({ fontSize: fontSizeVal, theme: getCurrentTheme() }).catch((e) => {
+    console.warn('[main] 保存设置失败:', e.message);
+  });
   activeReader.destroyReader();
   reader.style.display = 'none';
   reader.classList.add('hidden');
   splash.style.display = '';
   splash.classList.remove('hidden');
+  // 重置到本地文件标签页
+  tabOpen?.classList.add('active');
+  tabSearch?.classList.remove('active');
+  tabDownloads?.classList.remove('active');
+  splashLocal?.classList.remove('hidden');
+  searchPanel?.classList.add('hidden');
+  splashDownloads?.classList.add('hidden');
+  openBtn?.classList.remove('hidden');
   hideLoading();
   fileInput.value = '';
   clearToc();
   refreshRecentList();
+  currentFileName = '';
+  currentFileType = '';
+  currentSourceId = '';
+  currentBookUrl = '';
 }
 
 backBtn.addEventListener('click', goBack);
@@ -221,8 +441,8 @@ try {
   App.addListener('backButton', () => {
     if (!reader.classList.contains('hidden')) goBack();
   });
-} catch {
-  // 非 Capacitor 环境
+} catch (e) {
+  console.warn('[main] 非 Capacitor 环境，系统返回键已禁用:', e.message);
 }
 
 // ===== 目录面板 =====
@@ -243,21 +463,27 @@ fontSizeDown?.addEventListener('click', () => {
   const val = Math.max(80, parseInt(fontSizeDisplay?.textContent || '100', 10) - 10);
   if (fontSizeDisplay) fontSizeDisplay.textContent = `${val}%`;
   activeReader.setFontSize(val);
-  saveSettings({ fontSize: val, theme: getCurrentTheme() }).catch(() => {});
+  saveSettings({ fontSize: val, theme: getCurrentTheme() }).catch((e) => {
+    console.warn('[main] 保存设置失败:', e.message);
+  });
 });
 
 fontSizeUp?.addEventListener('click', () => {
   const val = Math.min(200, parseInt(fontSizeDisplay?.textContent || '100', 10) + 10);
   if (fontSizeDisplay) fontSizeDisplay.textContent = `${val}%`;
   activeReader.setFontSize(val);
-  saveSettings({ fontSize: val, theme: getCurrentTheme() }).catch(() => {});
+  saveSettings({ fontSize: val, theme: getCurrentTheme() }).catch((e) => {
+    console.warn('[main] 保存设置失败:', e.message);
+  });
 });
 
 // ===== 主题 =====
 function switchTheme(theme) {
   setTheme(theme);
   const fontSizeVal = parseInt(fontSizeDisplay?.textContent || '100', 10);
-  saveSettings({ fontSize: fontSizeVal, theme }).catch(() => {});
+  saveSettings({ fontSize: fontSizeVal, theme }).catch((e) => {
+    console.warn('[main] 保存主题设置失败:', e.message);
+  });
 }
 
 themeDay?.addEventListener('click', () => switchTheme('day'));
@@ -285,7 +511,9 @@ async function refreshRecentList() {
     } else {
       recentFiles?.classList.add('hidden');
     }
-  } catch {}
+  } catch (e) {
+    console.warn('[main] 刷新最近文件列表失败:', e.message);
+  }
 }
 
 async function handleRecentClick(name) {
@@ -332,8 +560,8 @@ async function init() {
         recentList.appendChild(li);
       }
     }
-  } catch {
-    // IndexedDB 可能不可用
+  } catch (e) {
+    console.warn('[main] 初始化失败（IndexedDB 可能不可用）:', e.message);
   }
 }
 

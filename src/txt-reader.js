@@ -30,13 +30,23 @@ function recalcPages() {
   if (!container || !text) return;
   const cw = container.clientWidth || 360;
   const ch = container.clientHeight || 500;
-  // 估算字符尺寸
-  const charW = fontSize * 0.55;
-  const charH = fontSize * 1.35;
-  const cols = Math.max(1, Math.floor(cw / charW));
+
+  // 中英文混合字符宽度估算：
+  // - 中文字符（CJK）≈ 2 个英文字符宽
+  // - 平均按 1.2 倍英文字符宽计算
+  // - 英文字符宽度 ≈ fontSize * 0.55
+  const avgCharWidth = fontSize * 0.55 * 1.2;
+  const charH = fontSize * 1.4;
+  const cols = Math.max(1, Math.floor(cw / avgCharWidth));
   const rows = Math.max(1, Math.floor(ch / charH));
   pageSize = Math.max(1, cols * rows);
+
+  // 更精确地估算：先分段，每段再按字符数切
+  // 简单场景下直接用 cols*rows 估算
   totalPages = Math.max(1, Math.ceil(text.length / pageSize));
+
+  // 如果总页数太多（文本极长），按实际渲染调整
+  // 但简单文本场景下固定分页够用
 }
 
 function renderPage() {

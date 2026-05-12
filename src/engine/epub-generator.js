@@ -30,6 +30,9 @@ export async function generateEpub({ title, author, chapters }) {
     const content = ch.content || ch.data || '';
     const chTitle = escapeXml(ch.name || ch.title || `第${i + 1}章`);
 
+    // 修复内容中的 HTML 命名实体（如 &nbsp; → &#160;），确保 XHTML 解析不报错
+    const fixedContent = fixHtmlEntities(content);
+
     zip.file(`OEBPS/${filename}`, `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE html>
 <html xmlns="http://www.w3.org/1999/xhtml">
@@ -39,7 +42,7 @@ export async function generateEpub({ title, author, chapters }) {
 </head>
 <body>
   <h3>${chTitle}</h3>
-  <div>${content}</div>
+  <div>${fixedContent}</div>
 </body>
 </html>`);
 
@@ -91,6 +94,96 @@ ${navPoints}
 </ncx>`);
 
   return zip.generateAsync({ type: 'arraybuffer', compression: 'DEFLATE' });
+}
+
+/**
+ * 将 HTML 命名实体转为 XHTML 兼容的数值引用
+ * 如 &nbsp; → &#160;，因为 XHTML/XML 不识别 HTML 命名实体
+ */
+function fixHtmlEntities(html) {
+  if (!html) return '';
+  const entities = {
+    'nbsp': '160',
+    'lt': '60',
+    'gt': '62',
+    'amp': '38',
+    'quot': '34',
+    'apos': '39',
+    'mdash': '8212',
+    'ndash': '8211',
+    'lsquo': '8216',
+    'rsquo': '8217',
+    'ldquo': '8220',
+    'rdquo': '8221',
+    'hellip': '8230',
+    'bull': '8226',
+    'middot': '183',
+    'laquo': '171',
+    'raquo': '187',
+    'copy': '169',
+    'reg': '174',
+    'trade': '8482',
+    'times': '215',
+    'divide': '247',
+    'sect': '167',
+    'deg': '176',
+    'plusmn': '177',
+    'sup2': '178',
+    'sup3': '179',
+    'frac14': '188',
+    'frac12': '189',
+    'frac34': '190',
+    'iquest': '191',
+    'iexcl': '161',
+    'pound': '163',
+    'yen': '165',
+    'euro': '8364',
+    'brvbar': '166',
+    'uml': '168',
+    'acute': '180',
+    'cedil': '184',
+    'macr': '175',
+    'ordf': '170',
+    'ordm': '186',
+    'shy': '173',
+    'not': '172',
+    'loz': '9674',
+    'spades': '9824',
+    'clubs': '9827',
+    'hearts': '9829',
+    'diams': '9830',
+    'sbquo': '8218',
+    'bdquo': '8222',
+    'dagger': '8224',
+    'Dagger': '8225',
+    'permil': '8240',
+    'prime': '8242',
+    'Prime': '8243',
+    'oline': '8254',
+    'frasl': '8260',
+    'image': '8465',
+    'weierp': '8472',
+    'real': '8476',
+    'alefsym': '8501',
+    'larr': '8592',
+    'uarr': '8593',
+    'rarr': '8594',
+    'darr': '8595',
+    'harr': '8596',
+    'crarr': '8629',
+    'lArr': '8656',
+    'uArr': '8657',
+    'rArr': '8658',
+    'dArr': '8659',
+    'hArr': '8660',
+  };
+  return html.replace(/&(\w+);/g, (match, name) => {
+    if (entities[name]) {
+      return `&#${entities[name]};`;
+    }
+    // 未知实体保留原样（可能是自定义实体）
+    return match;
+  });
 }
 
 function escapeXml(s) {

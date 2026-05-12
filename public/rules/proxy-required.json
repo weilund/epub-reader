@@ -49,6 +49,7 @@
       "method": "get",
       "result": ".pic_txt_list",
       "bookName": "h3 > a",
+      "bookUrl": "h3 > a",
       "author": "p.info > span"
     },
     "book": {
@@ -82,6 +83,7 @@
       "method": "get",
       "result": "#ListContents > div",
       "bookName": ".margin0h5 > a.fonttext",
+      "bookUrl": ".margin0h5 > a.fonttext",
       "author": ".margin0h5 > a:nth-child(2)",
       "latestChapter": ".right_wid > div:nth-child(4) > a@js:r=r.replaceAll('最新章节','');",
       "lastUpdateTime": ".right_wid > div:nth-child(4) > span",
@@ -114,6 +116,7 @@
       "method": "get",
       "result": "#article_list_content > li > div.newnav",
       "bookName": "h3 > a:nth-child(2)",
+      "bookUrl": "h3 > a:nth-child(2)",
       "author": "div.labelbox > label:nth-child(1)",
       "category": "div.labelbox > label:nth-child(2)",
       "status": "div.labelbox > label:nth-child(3)",

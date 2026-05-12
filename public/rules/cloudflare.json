@@ -72,6 +72,7 @@
       "method": "get",
       "result": ".bookinfo",
       "bookName": "h4 > a",
+      "bookUrl": "h4 > a",
       "author": "div.author",
       "category": "div.cat",
       "latestChapter": "div.update > a"
