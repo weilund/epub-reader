@@ -99,9 +99,10 @@ export function goTo(target) {
 
 export function setFontSize(percent) {
   fontSize = percent;
-  const savedPage = currentPage;
+  // 基于字符偏移比例恢复位置，避免字号变化后页码漂移
+  const charOffset = currentPage * pageSize;
   recalcPages();
-  currentPage = Math.min(savedPage, totalPages - 1);
+  currentPage = Math.min(Math.floor(charOffset / pageSize), Math.max(0, totalPages - 1));
   renderPage();
 }
 

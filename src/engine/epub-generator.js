@@ -102,13 +102,10 @@ ${navPoints}
  */
 function fixHtmlEntities(html) {
   if (!html) return '';
+  // XHTML 原生支持 lt, gt, amp, quot, apos，无需转换
+  const ENTITIES_SKIP = new Set(['lt', 'gt', 'amp', 'quot', 'apos']);
   const entities = {
     'nbsp': '160',
-    'lt': '60',
-    'gt': '62',
-    'amp': '38',
-    'quot': '34',
-    'apos': '39',
     'mdash': '8212',
     'ndash': '8211',
     'lsquo': '8216',
@@ -178,6 +175,7 @@ function fixHtmlEntities(html) {
     'hArr': '8660',
   };
   return html.replace(/&(\w+);/g, (match, name) => {
+    if (ENTITIES_SKIP.has(name)) return match;
     if (entities[name]) {
       return `&#${entities[name]};`;
     }

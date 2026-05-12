@@ -277,7 +277,7 @@ function extractChapterList(doc, rule, baseUrl) {
     if (name && url) {
       chapters.push({
         index: i,
-        name: name.replace(/^\d+[\.\、\s]+/, '').trim(),
+        name: name.replace(/^\d{1,4}[\.\、\s]+/, '').trim(),
         url: resolveUrl(baseUrl, url),
       });
     }
@@ -428,14 +428,16 @@ export async function downloadBook(ruleId, bookUrl, bookName, author, onProgress
         return { ...ch, content: processed };
       })
     );
+    let batchSuccess = 0;
     for (const r of batchResults) {
       if (r.status === 'fulfilled') {
         contents.push(r.value);
+        batchSuccess++;
       } else {
         console.warn(`[下载] 章节获取失败: ${r.reason?.message || r.reason}`);
       }
     }
-    completedChapters += batch.length;
+    completedChapters += batchSuccess;
     if (onProgress) {
       onProgress(completedChapters, totalChapters);
     }

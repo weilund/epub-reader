@@ -46,6 +46,9 @@ async function doSearch() {
   // 重置状态
   abortSearch = false;
   searchResults.innerHTML = '';
+  // 清除上一次搜索的状态容器
+  const oldStatus = document.getElementById('sourceStatusList');
+  if (oldStatus) oldStatus.remove();
   searchStatus?.classList.remove('hidden');
   searchStatus.innerHTML = '<span class="search-status-active">🔍 搜索中…</span>';
   searchLoading?.classList.add('hidden');

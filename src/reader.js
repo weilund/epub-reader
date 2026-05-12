@@ -159,10 +159,11 @@ export function destroyReader() {
 
 // 目录高亮
 function highlightActiveToc(location) {
-  const cfi = location.start.cfi;
+  const href = location.start.href;
+  if (!href) return;
   document.querySelectorAll('.toc-list li').forEach((li) => {
-    const itemCfi = li.dataset.cfi;
-    li.classList.toggle('active', itemCfi && cfi?.startsWith(itemCfi));
+    const itemHref = li.dataset.cfi; // 实际存的是 href（见 flattenToc）
+    li.classList.toggle('active', itemHref && href === itemHref);
   });
 }
 

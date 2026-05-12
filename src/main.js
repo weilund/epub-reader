@@ -249,26 +249,50 @@ async function refreshDownloadsList() {
           }
         } catch (e) {
           console.warn('[导出] 失败:', e.message);
-          if (overlayStatus) overlayStatus.textContent = `导出失败: ${e.message}`;
-          setTimeout(() => overlay?.classList.add('hidden'), 2000);
-          // 回退：Blob 下载
+          // 回退1：尝试写入 Data 目录（Cache 目录可能权限不足）
           try {
-            const buffer = await loadBookData(name);
-            if (buffer) {
-              const blob = new Blob([buffer], { type: 'application/epub+zip' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = fileName;
-              a.style.display = 'none';
-              document.body.appendChild(a);
-              a.click();
-              setTimeout(() => {
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-              }, 1000);
+            if (overlayStatus) overlayStatus.textContent = '正在重试…';
+            const result = await Filesystem.writeFile({
+              path: fileName,
+              data: base64,
+              directory: Directory.Data,
+              recursive: true,
+            });
+            if (overlayProgress) overlayProgress.style.width = '90%';
+            if (overlayStatus) overlayStatus.textContent = '导出完成！';
+            setTimeout(() => overlay?.classList.add('hidden'), 500);
+            try {
+              await Share.share({
+                title: name,
+                url: result.uri,
+                dialogTitle: `导出「${name}」`,
+              });
+            } catch {
+              alert(`导出成功！`);
             }
-          } catch {}
+          } catch (e2) {
+            console.warn('[导出] 重试失败:', e2.message);
+            if (overlayStatus) overlayStatus.textContent = `导出失败: ${e.message}`;
+            setTimeout(() => overlay?.classList.add('hidden'), 2500);
+            // 回退2：浏览器 Blob 下载（PWA 环境可用）
+            try {
+              const buffer = await loadBookData(name);
+              if (buffer) {
+                const blob = new Blob([buffer], { type: 'application/epub+zip' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                a.style.display = 'none';
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(() => {
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                }, 1000);
+              }
+            } catch { /* 全部失败，静默 */ }
+          }
         }
       });
     });
