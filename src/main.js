@@ -16,6 +16,8 @@ import { mountSearchUI, setOnOpenBook } from './search.js';
 import { searchAll, downloadBook, checkForUpdates, downloadChapters } from './engine/rule-engine.js';
 import { generateEpub } from './engine/epub-generator.js';
 import { saveDownloadedBook } from './download.js';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 
 // ===== DOM 引用 =====
 const $ = (id) => document.getElementById(id);
@@ -184,32 +186,90 @@ async function refreshDownloadsList() {
       });
     });
 
-    // 绑定导出按钮
+    // 绑定导出按钮（使用 Capacitor 原生文件系统写入 + 分享）
     downloadsList.querySelectorAll('.downloads-export-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
         const name = btn.dataset.name;
-        const buffer = await loadBookData(name);
-        if (!buffer) { alert('书籍数据不存在'); return; }
-        const blob = new Blob([buffer], { type: 'application/epub+zip' });
-        // 优先使用 Web Share API（Android 原生分享 → 可存到下载目录）
-        if (navigator.share && navigator.canShare) {
-          const file = new File([blob], `${name}.epub`, { type: 'application/epub+zip' });
-          if (navigator.canShare({ files: [file] })) {
-            try {
-              await navigator.share({ files: [file], title: name });
-              return;
-            } catch (e) {
-              if (e.name === 'AbortError') return;
-            }
+        // 过滤文件名中的非法字符
+        const safeName = (name || 'book').replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/\s+/g, ' ').trim() || 'book';
+        const fileName = `${safeName}.epub`;
+
+        // 复用下载进度浮层
+        const overlay = document.getElementById('downloadOverlay');
+        const overlayName = document.getElementById('downloadBookName');
+        const overlayProgress = document.getElementById('downloadProgressFill');
+        const overlayStatus = document.getElementById('downloadStatus');
+        overlay?.classList.remove('hidden');
+        if (overlayName) overlayName.textContent = fileName;
+        if (overlayProgress) overlayProgress.style.width = '10%';
+        if (overlayStatus) overlayStatus.textContent = '正在导出…';
+
+        try {
+          const buffer = await loadBookData(name);
+          if (!buffer) { alert('书籍数据不存在'); return; }
+
+          if (overlayProgress) overlayProgress.style.width = '30%';
+          if (overlayStatus) overlayStatus.textContent = '正在编码…';
+
+          // 用 FileReader 高效转 base64（比逐字节循环快 100x）
+          const blob = new Blob([buffer], { type: 'application/epub+zip' });
+          const dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          const base64 = dataUrl.split(',')[1];
+
+          if (overlayProgress) overlayProgress.style.width = '60%';
+          if (overlayStatus) overlayStatus.textContent = '正在写入存储…';
+
+          // 写入 App 内部缓存目录（不受作用域存储限制）
+          const result = await Filesystem.writeFile({
+            path: fileName,
+            data: base64,
+            directory: Directory.Cache,
+            recursive: true,
+          });
+
+          if (overlayProgress) overlayProgress.style.width = '90%';
+          if (overlayStatus) overlayStatus.textContent = '导出完成！';
+
+          setTimeout(() => overlay?.classList.add('hidden'), 500);
+
+          // 用系统分享打开文件（用户可选择保存/发送）
+          try {
+            await Share.share({
+              title: name,
+              url: result.uri,
+              dialogTitle: `导出「${name}」`,
+            });
+          } catch {
+            alert(`导出成功！`);
           }
+        } catch (e) {
+          console.warn('[导出] 失败:', e.message);
+          if (overlayStatus) overlayStatus.textContent = `导出失败: ${e.message}`;
+          setTimeout(() => overlay?.classList.add('hidden'), 2000);
+          // 回退：Blob 下载
+          try {
+            const buffer = await loadBookData(name);
+            if (buffer) {
+              const blob = new Blob([buffer], { type: 'application/epub+zip' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = fileName;
+              a.style.display = 'none';
+              document.body.appendChild(a);
+              a.click();
+              setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+              }, 1000);
+            }
+          } catch {}
         }
-        // 降级：创建下载链接
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${name}.epub`;
-        a.click();
-        URL.revokeObjectURL(url);
       });
     });
 
@@ -469,6 +529,12 @@ async function doSwitchSource(sourceId, bookUrl, bookName, author) {
     await saveBookSource(currentFileName, { sourceId, bookUrl, author });
     currentSourceId = sourceId;
     currentBookUrl = bookUrl;
+    // 更新章节元数据
+    await saveChapterMeta(currentFileName, data.chapters.map(ch => ({
+      index: ch.index,
+      name: ch.name || ch.title,
+      url: ch.url,
+    }))).catch(() => {});
 
     // 重新打开阅读器
     activeReader.destroyReader();
