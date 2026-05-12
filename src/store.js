@@ -36,6 +36,7 @@ export async function deleteBookData(fileName) {
   await del(`book:${fileName}:data`);
   await del(`book:${fileName}:progress`);
   await del(`book:${fileName}:source`);
+  await del(`book:${fileName}:chapters`);
 }
 
 // ===== 书源记录（用于换源） =====
@@ -85,6 +86,20 @@ export async function saveRecentFile(entry) {
 
 export async function loadRecentFiles() {
   return (await get('global:recent')) || [];
+}
+
+// ===== 章节元数据（用于增量更新） =====
+export async function saveChapterMeta(fileName, chapters) {
+  // chapters: [{ index, name, url }]
+  await set(`book:${fileName}:chapters`, chapters);
+}
+
+export async function loadChapterMeta(fileName) {
+  return (await get(`book:${fileName}:chapters`)) || [];
+}
+
+export async function deleteChapterMeta(fileName) {
+  await del(`book:${fileName}:chapters`);
 }
 
 export async function clearRecent() {

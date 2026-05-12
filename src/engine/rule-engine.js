@@ -443,3 +443,74 @@ export async function downloadBook(ruleId, bookUrl, bookName, author, onProgress
 
   return { bookName: bookName || rule.name || '', author: author || '', chapters: contents };
 }
+
+// ===== 增量更新 =====
+
+/**
+ * 获取最新章节列表（不下载内容）
+ */
+export async function fetchLatestChapters(ruleId, bookUrl) {
+  const rules = await loadRules();
+  const rule = rules.find(r => r._id === ruleId || r.name === ruleId);
+  if (!rule) throw new Error(`书源 ${ruleId} 不存在`);
+  return await getChapters(rule, bookUrl);
+}
+
+/**
+ * 比对已存章节与最新章节，返回新增章节
+ * @param {string} ruleId  书源 ID
+ * @param {string} bookUrl 书籍 URL
+ * @param {Array} savedChapters 已存储的章节列表 [{url}]
+ * @returns {Array} 新增章节 [{name, url}]
+ */
+export async function checkForUpdates(ruleId, bookUrl, savedChapters) {
+  if (!savedChapters || savedChapters.length === 0) {
+    // 没有已存章节 → 全部都是新的
+    return await fetchLatestChapters(ruleId, bookUrl);
+  }
+
+  const latest = await fetchLatestChapters(ruleId, bookUrl);
+  const savedUrls = new Set(savedChapters.map(c => c.url));
+
+  // 找出 URL 不在已存列表中的章节
+  return latest.filter(ch => !savedUrls.has(ch.url));
+}
+
+/**
+ * 下载指定章节的内容
+ * @param {string} ruleId      书源 ID
+ * @param {Array}  chapters    要下载的章节 [{name, url}]
+ * @param {Function} onProgress (done, total) 回调
+ * @returns {Array} [{name, url, content}]
+ */
+export async function downloadChapters(ruleId, chapters, onProgress) {
+  const rules = await loadRules();
+  const rule = rules.find(r => r._id === ruleId || r.name === ruleId);
+  if (!rule) throw new Error(`书源 ${ruleId} 不存在`);
+
+  const crawl = rule.crawl || {};
+  const concurrency = crawl.concurrency || 5;
+  const results = [];
+
+  for (let i = 0; i < chapters.length; i += concurrency) {
+    const batch = chapters.slice(i, i + concurrency);
+    const batchResults = await Promise.allSettled(
+      batch.map(async (ch) => {
+        await delay(rule);
+        const content = await getChapterContent(rule, ch.url);
+        const processed = processParagraphs(content, rule.chapter || {});
+        return { ...ch, content: processed };
+      })
+    );
+    for (const r of batchResults) {
+      if (r.status === 'fulfilled') {
+        results.push(r.value);
+      } else {
+        console.warn(`[增量] 章节获取失败: ${r.reason?.message || r.reason}`);
+      }
+    }
+    if (onProgress) onProgress(results.length, chapters.length);
+  }
+
+  return results;
+}

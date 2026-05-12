@@ -2,6 +2,7 @@ import { searchAllStreaming } from './engine/rule-engine.js';
 import { downloadBook } from './engine/rule-engine.js';
 import { generateEpub } from './engine/epub-generator.js';
 import { saveDownloadedBook } from './download.js';
+import { saveChapterMeta } from './store.js';
 
 let searchPanel, searchInput, searchResults, searchStatus, searchLoading;
 let downloadOverlay, downloadBookName, downloadProgressFill, downloadStatus;
@@ -258,6 +259,13 @@ async function startDownload(bookInfo, sourceId) {
 
     if (downloadStatus) downloadStatus.textContent = '保存中…';
     if (downloadProgressFill) downloadProgressFill.style.width = '90%';
+
+    // 保存章节元数据（用于后续增量更新）
+    await saveChapterMeta(bookInfo.name, data.chapters.map(ch => ({
+      index: ch.index,
+      name: ch.name || ch.title,
+      url: ch.url,
+    }))).catch(() => {});
 
     const blob = new Blob([epubBuffer], { type: 'application/epub+zip' });
     const arrayBuffer = await saveDownloadedBook(blob, bookInfo.name);

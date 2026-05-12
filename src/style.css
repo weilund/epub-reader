@@ -709,6 +709,39 @@ body.sepia {
   color: #fff;
 }
 
+.downloads-export-btn {
+  padding: 8px 14px;
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--accent-dark);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.downloads-export-btn:active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.downloads-update-btn {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  background: #4caf50;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.downloads-update-btn:active {
+  opacity: 0.7;
+}
+
 /* ===== 搜索展开/折叠按钮 ===== */
 .search-toggle-btn {
   width: 100%;

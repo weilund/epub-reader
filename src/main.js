@@ -8,12 +8,12 @@ import {
   setCallbacks as epubSetCallbacks,
 } from './reader.js';
 import * as txt from './txt-reader.js';
-import { loadSettings, saveSettings, loadProgress, loadBookData, loadBookSource, saveBookSource, deleteBookData, listAllBooks } from './store.js';
+import { loadSettings, saveSettings, loadProgress, loadBookData, loadBookSource, saveBookSource, deleteBookData, listAllBooks, saveChapterMeta, loadChapterMeta } from './store.js';
 import { getCurrentTheme, setTheme, onThemeChange } from './theme.js';
 import { renderToc, toggleSort, clearToc } from './toc.js';
 import { showLoading, hideLoading, showBars, hideBars, toggleBars, updateChapterTitle, updateThemeButtons } from './ui.js';
 import { mountSearchUI, setOnOpenBook } from './search.js';
-import { searchAll, downloadBook } from './engine/rule-engine.js';
+import { searchAll, downloadBook, checkForUpdates, downloadChapters } from './engine/rule-engine.js';
 import { generateEpub } from './engine/epub-generator.js';
 import { saveDownloadedBook } from './download.js';
 
@@ -147,15 +147,18 @@ async function refreshDownloadsList() {
 
     let html = '';
     for (const name of names) {
-      const hasSource = !!(await loadBookSource(name).catch(() => null));
+      const sourceInfo = await loadBookSource(name).catch(() => null);
+      const hasSource = !!sourceInfo;
       html += `
       <div class="downloads-item" data-name="${escapeHtml(name)}">
         <div class="downloads-item-info">
           <div class="downloads-item-title">${escapeHtml(name)}</div>
-          <div class="downloads-item-meta">${hasSource ? '📡 可换源' : '📄 本地文件'}</div>
+          <div class="downloads-item-meta">${hasSource ? '📡 可更新' : '📄 本地文件'}</div>
         </div>
         <div class="downloads-item-actions">
           <button class="downloads-open-btn" data-name="${escapeAttr(name)}">打开</button>
+          ${hasSource ? `<button class="downloads-update-btn" data-name="${escapeAttr(name)}" data-source="${escapeAttr(sourceInfo.sourceId)}" data-url="${escapeAttr(sourceInfo.bookUrl)}">更新</button>` : ''}
+          <button class="downloads-export-btn" data-name="${escapeAttr(name)}">导出</button>
           <button class="downloads-del-btn" data-name="${escapeAttr(name)}">删除</button>
         </div>
       </div>`;
@@ -181,6 +184,45 @@ async function refreshDownloadsList() {
       });
     });
 
+    // 绑定导出按钮
+    downloadsList.querySelectorAll('.downloads-export-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const name = btn.dataset.name;
+        const buffer = await loadBookData(name);
+        if (!buffer) { alert('书籍数据不存在'); return; }
+        const blob = new Blob([buffer], { type: 'application/epub+zip' });
+        // 优先使用 Web Share API（Android 原生分享 → 可存到下载目录）
+        if (navigator.share && navigator.canShare) {
+          const file = new File([blob], `${name}.epub`, { type: 'application/epub+zip' });
+          if (navigator.canShare({ files: [file] })) {
+            try {
+              await navigator.share({ files: [file], title: name });
+              return;
+            } catch (e) {
+              if (e.name === 'AbortError') return;
+            }
+          }
+        }
+        // 降级：创建下载链接
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${name}.epub`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+    });
+
+    // 绑定更新按钮
+    downloadsList.querySelectorAll('.downloads-update-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const name = btn.dataset.name;
+        const sourceId = btn.dataset.source;
+        const bookUrl = btn.dataset.url;
+        await doCheckUpdate(name, sourceId, bookUrl);
+      });
+    });
+
     // 绑定删除按钮
     downloadsList.querySelectorAll('.downloads-del-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -193,6 +235,55 @@ async function refreshDownloadsList() {
   } catch (e) {
     console.warn('[main] 刷新下载列表失败:', e.message);
     downloadsList.innerHTML = '<div class="downloads-empty">加载失败</div>';
+  }
+}
+
+/**
+ * 检查连载书籍更新，下载新章节并替换 EPUB
+ */
+async function doCheckUpdate(name, sourceId, bookUrl) {
+  if (!confirm(`检查「${name}」的更新？`)) return;
+  showLoading();
+  try {
+    const savedMeta = await loadChapterMeta(name);
+    const newChapters = await checkForUpdates(sourceId, bookUrl, savedMeta);
+    if (newChapters.length === 0) {
+      hideLoading();
+      alert('已是最新，无需更新');
+      return;
+    }
+    // 下载新章节
+    const downloaded = await downloadChapters(sourceId, newChapters, (done, total) => {
+      // 进度通过 loading 文字体现
+    });
+    if (downloaded.length === 0) {
+      hideLoading();
+      alert('未能下载任何新章节');
+      return;
+    }
+    // 合并新旧章节内容
+    const allChapters = [...savedMeta, ...downloaded];
+    // 重新生成 EPUB
+    const epubBuffer = await generateEpub({
+      title: name,
+      author: '',
+      chapters: allChapters.filter(c => c.content),
+    });
+    const blob = new Blob([epubBuffer], { type: 'application/epub+zip' });
+    const arrayBuffer = await blob.arrayBuffer();
+    // 替换存储
+    await saveDownloadedBook(blob, name);
+    await saveChapterMeta(name, allChapters.map(ch => ({
+      index: ch.index,
+      name: ch.name || ch.title,
+      url: ch.url,
+    })));
+    hideLoading();
+    alert(`更新完成！新增 ${downloaded.length} 章`);
+    refreshDownloadsList();
+  } catch (e) {
+    hideLoading();
+    alert(`更新失败: ${e.message}`);
   }
 }
 
@@ -334,6 +425,18 @@ switchSourceBtn?.addEventListener('click', async () => {
       switchSourceList.innerHTML = `<div class="switch-source-empty">搜索失败: ${escapeHtml(e.message)}</div>`;
     }
   }
+});
+
+// ===== 检查更新（阅读器内） =====
+const checkUpdateBtn = document.getElementById('checkUpdateBtn');
+checkUpdateBtn?.addEventListener('click', async () => {
+  if (!currentFileName) return;
+  const sourceInfo = await loadBookSource(currentFileName).catch(() => null);
+  if (!sourceInfo || !sourceInfo.sourceId) {
+    alert('该书没有书源记录，无法检查更新');
+    return;
+  }
+  await doCheckUpdate(currentFileName, sourceInfo.sourceId, sourceInfo.bookUrl);
 });
 
 closeSwitchSource?.addEventListener('click', () => {
